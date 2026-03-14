@@ -1,0 +1,11 @@
+server:
+  port: 8001
+
+claude:
+  cli:
+    path: claude
+    timeout-seconds: 120
+
+spring:
+  application:
+    name: claude-bot-api
