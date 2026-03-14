@@ -47,7 +47,8 @@ public class ClaudeCliService {
         log.info("Working directory: {}", cwd != null ? cwd : "default");
 
         ProcessBuilder pb = new ProcessBuilder(command);
-        pb.redirectErrorStream(false);
+        pb.redirectErrorStream(true);
+        pb.environment().remove("CLAUDECODE");
 
         if (cwd != null && !cwd.isBlank()) {
             pb.directory(new File(cwd));
@@ -56,6 +57,7 @@ public class ClaudeCliService {
         Process process;
         try {
             process = pb.start();
+            process.getOutputStream().close(); // stdin kapalı — claude input beklemesin
             log.info("Process started with PID: {}", process.pid());
         } catch (IOException e) {
             log.error("Failed to start Claude CLI process", e);
@@ -63,8 +65,7 @@ public class ClaudeCliService {
         }
 
         try {
-            String stdout = new String(process.getInputStream().readAllBytes());
-            String stderr = new String(process.getErrorStream().readAllBytes());
+            String output = new String(process.getInputStream().readAllBytes());
 
             boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
             if (!finished) {
@@ -76,23 +77,19 @@ public class ClaudeCliService {
             int exitCode = process.exitValue();
             log.info("Process exited with code: {}", exitCode);
 
-            if (!stderr.isBlank()) {
-                log.warn("stderr: {}", stderr.trim());
-            }
-
             if (exitCode != 0) {
-                log.error("Claude CLI error output: {}", stderr.trim());
+                log.error("Claude CLI failed, output: {}", output.trim());
                 throw new ClaudeExecutionException(
-                        "Claude CLI exited with code " + exitCode + ": " + stderr.trim()
+                        "Claude CLI exited with code " + exitCode + ": " + output.trim()
                 );
             }
 
-            log.debug("stdout: {}", stdout);
-            return parseOutput(stdout);
+            log.debug("output: {}", output);
+            return parseOutput(output);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.error("Claude CLI execution was interrupted", e);
+            log.error("Claude CLI execution interrupted", e);
             throw new ClaudeExecutionException("Claude CLI execution was interrupted", e);
         } catch (IOException e) {
             log.error("Failed to read Claude CLI output", e);
@@ -107,6 +104,7 @@ public class ClaudeCliService {
         cmd.add(content);
         cmd.add("--output-format");
         cmd.add("json");
+        cmd.add("--dangerously-skip-permissions");
 
         if (sessionId != null && !sessionId.isBlank()) {
             cmd.add("--session-id");

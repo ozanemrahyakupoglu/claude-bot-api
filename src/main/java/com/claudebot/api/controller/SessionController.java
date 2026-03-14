@@ -47,7 +47,7 @@ public class SessionController {
 
     @PostMapping("/{sessionId}/messages")
     public ResponseEntity<MessageResponse> sendMessage(
-            @PathVariable String sessionId,
+            @PathVariable("sessionId") String sessionId,
             @Valid @RequestBody SendMessageRequest request) {
 
         log.info("Sending message to session: id={}", sessionId);
@@ -68,7 +68,7 @@ public class SessionController {
     }
 
     @DeleteMapping("/{sessionId}")
-    public ResponseEntity<Void> deleteSession(@PathVariable String sessionId) {
+    public ResponseEntity<Void> deleteSession(@PathVariable("sessionId") String sessionId) {
         log.info("Deleting session: id={}", sessionId);
         if (!sessionStore.exists(sessionId)) {
             log.warn("Session not found for deletion: id={}", sessionId);
