@@ -4,6 +4,8 @@ import com.claudebot.api.config.ClaudeProperties;
 import com.claudebot.api.exception.ClaudeExecutionException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -14,6 +16,8 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class ClaudeCliService {
+
+    private static final Logger log = LoggerFactory.getLogger(ClaudeCliService.class);
 
     private final ClaudeProperties properties;
     private final ObjectMapper objectMapper;
@@ -39,6 +43,8 @@ public class ClaudeCliService {
 
     private String execute(String content, String sessionId, String cwd) {
         List<String> command = buildCommand(content, sessionId);
+        log.info("Executing command: {}", command);
+        log.info("Working directory: {}", cwd != null ? cwd : "default");
 
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(false);
@@ -50,7 +56,9 @@ public class ClaudeCliService {
         Process process;
         try {
             process = pb.start();
+            log.info("Process started with PID: {}", process.pid());
         } catch (IOException e) {
+            log.error("Failed to start Claude CLI process", e);
             throw new ClaudeExecutionException("Failed to start Claude CLI process: " + e.getMessage(), e);
         }
 
@@ -61,22 +69,33 @@ public class ClaudeCliService {
             boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
+                log.error("Claude CLI timed out after {}s", properties.getTimeoutSeconds());
                 throw new ClaudeExecutionException("Claude CLI timed out after " + properties.getTimeoutSeconds() + "s");
             }
 
             int exitCode = process.exitValue();
+            log.info("Process exited with code: {}", exitCode);
+
+            if (!stderr.isBlank()) {
+                log.warn("stderr: {}", stderr.trim());
+            }
+
             if (exitCode != 0) {
+                log.error("Claude CLI error output: {}", stderr.trim());
                 throw new ClaudeExecutionException(
                         "Claude CLI exited with code " + exitCode + ": " + stderr.trim()
                 );
             }
 
+            log.debug("stdout: {}", stdout);
             return parseOutput(stdout);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            log.error("Claude CLI execution was interrupted", e);
             throw new ClaudeExecutionException("Claude CLI execution was interrupted", e);
         } catch (IOException e) {
+            log.error("Failed to read Claude CLI output", e);
             throw new ClaudeExecutionException("Failed to read Claude CLI output: " + e.getMessage(), e);
         }
     }
