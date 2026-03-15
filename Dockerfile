@@ -26,11 +26,17 @@ RUN apt-get update && apt-get install -y curl ca-certificates gnupg git --no-ins
 # Install Claude Code CLI globally
 RUN npm install -g @anthropic-ai/claude-code
 
+RUN useradd -m -u 1000 claude-bot
+
 WORKDIR /app
 
 COPY --from=builder /build/target/*.jar app.jar
 COPY entrypoint.sh entrypoint.sh
-RUN chmod +x entrypoint.sh
+RUN chmod +x entrypoint.sh \
+    && mkdir -p /app/workspace \
+    && chown -R claude-bot:claude-bot /app
+
+USER claude-bot
 
 EXPOSE 8001
 
