@@ -48,6 +48,16 @@ public class SessionController {
         return sessions;
     }
 
+    @GetMapping("/current")
+    public ResponseEntity<SessionInfo> getCurrentSession() {
+        SessionInfo session = sessionStore.getCurrent();
+        if (session == null) {
+            return ResponseEntity.notFound().build();
+        }
+        log.info("Current session: id={}", session.getSessionId());
+        return ResponseEntity.ok(session);
+    }
+
     @PostMapping("/{sessionId}/messages")
     public ResponseEntity<MessageResponse> sendMessage(
             @PathVariable("sessionId") String sessionId,

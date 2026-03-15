@@ -3,8 +3,8 @@ package com.claudebot.api.service;
 import com.claudebot.api.dto.SessionInfo;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -29,7 +29,15 @@ public class SessionStore {
         sessions.remove(sessionId);
     }
 
-    public Collection<SessionInfo> getAll() {
-        return Collections.unmodifiableCollection(sessions.values());
+    public List<SessionInfo> getAll() {
+        return sessions.values().stream()
+                .sorted(Comparator.comparing(SessionInfo::getLastUsedAt).reversed())
+                .toList();
+    }
+
+    public SessionInfo getCurrent() {
+        return sessions.values().stream()
+                .max(Comparator.comparing(SessionInfo::getLastUsedAt))
+                .orElse(null);
     }
 }
