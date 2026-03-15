@@ -8,8 +8,14 @@ if [ -n "$ROLE_REPO_URL" ]; then
   cd /app && git clone "$ROLE_REPO_URL"
 
   REPO_NAME=$(basename "$ROLE_REPO_URL" .git)
-  MANIFEST_PATH="/app/${REPO_NAME}/manifest.md"
   echo "Role repository cloned to /app/${REPO_NAME}"
+
+  if [ -n "$AGENT_ROLE_PATH" ]; then
+    MANIFEST_PATH="/app/${REPO_NAME}/${AGENT_ROLE_PATH}/manifest.md"
+    echo "Using agent path: ${AGENT_ROLE_PATH}"
+  else
+    MANIFEST_PATH="/app/${REPO_NAME}/manifest.md"
+  fi
 
   cat > /app/CLAUDE.md <<EOF
 ${MANIFEST_PATH} dosyasını oku ve orada tanımlanan tüm talimatlara uy.
