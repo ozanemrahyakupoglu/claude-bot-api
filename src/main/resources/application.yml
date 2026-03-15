@@ -5,6 +5,7 @@ claude:
   cli:
     path: claude
     timeout-seconds: 120
+    default-cwd: /app
 
 spring:
   application:

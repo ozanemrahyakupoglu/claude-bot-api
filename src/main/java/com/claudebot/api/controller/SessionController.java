@@ -1,5 +1,6 @@
 package com.claudebot.api.controller;
 
+import com.claudebot.api.config.ClaudeProperties;
 import com.claudebot.api.dto.*;
 import com.claudebot.api.exception.SessionNotFoundException;
 import com.claudebot.api.service.ClaudeCliService;
@@ -23,16 +24,18 @@ public class SessionController {
 
     private final SessionStore sessionStore;
     private final ClaudeCliService claudeCliService;
+    private final ClaudeProperties claudeProperties;
 
-    public SessionController(SessionStore sessionStore, ClaudeCliService claudeCliService) {
+    public SessionController(SessionStore sessionStore, ClaudeCliService claudeCliService, ClaudeProperties claudeProperties) {
         this.sessionStore = sessionStore;
         this.claudeCliService = claudeCliService;
+        this.claudeProperties = claudeProperties;
     }
 
     @PostMapping
     public ResponseEntity<SessionInfo> createSession(@RequestBody(required = false) CreateSessionRequest request) {
         String sessionId = UUID.randomUUID().toString();
-        String cwd = (request != null) ? request.getCwd() : null;
+        String cwd = (request != null && request.getCwd() != null) ? request.getCwd() : claudeProperties.getDefaultCwd();
         log.info("Creating session: id={}, cwd={}", sessionId, cwd);
         SessionInfo session = sessionStore.put(new SessionInfo(sessionId, cwd));
         return ResponseEntity.status(HttpStatus.CREATED).body(session);

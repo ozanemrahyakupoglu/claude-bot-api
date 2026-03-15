@@ -9,6 +9,7 @@ public class ClaudeProperties {
 
     private String path = "claude";
     private int timeoutSeconds = 120;
+    private String defaultCwd = "/app";
 
     public String getPath() {
         return path;
@@ -24,5 +25,13 @@ public class ClaudeProperties {
 
     public void setTimeoutSeconds(int timeoutSeconds) {
         this.timeoutSeconds = timeoutSeconds;
+    }
+
+    public String getDefaultCwd() {
+        return defaultCwd;
+    }
+
+    public void setDefaultCwd(String defaultCwd) {
+        this.defaultCwd = defaultCwd;
     }
 }
