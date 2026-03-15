@@ -8,6 +8,7 @@ public class SessionInfo {
     private final String cwd;
     private final Instant createdAt;
     private Instant lastUsedAt;
+    private boolean started = false;
 
     public SessionInfo(String sessionId, String cwd) {
         this.sessionId = sessionId;
@@ -20,6 +21,11 @@ public class SessionInfo {
         this.lastUsedAt = Instant.now();
     }
 
+    public void markStarted() {
+        this.started = true;
+    }
+
+    public boolean isStarted() { return started; }
     public String getSessionId() { return sessionId; }
     public String getCwd() { return cwd; }
     public Instant getCreatedAt() { return createdAt; }

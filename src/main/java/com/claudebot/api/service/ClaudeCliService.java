@@ -31,18 +31,19 @@ public class ClaudeCliService {
      * Runs a prompt without a session (single-shot).
      */
     public String runPrompt(String content, String cwd) {
-        return execute(content, null, cwd);
+        return execute(content, null, cwd, false);
     }
 
     /**
      * Runs a prompt within an existing session.
+     * @param resume if true, resumes an existing session with --resume; otherwise starts a new one with --session-id
      */
-    public String runWithSession(String content, String sessionId, String cwd) {
-        return execute(content, sessionId, cwd);
+    public String runWithSession(String content, String sessionId, String cwd, boolean resume) {
+        return execute(content, sessionId, cwd, resume);
     }
 
-    private String execute(String content, String sessionId, String cwd) {
-        List<String> command = buildCommand(content, sessionId);
+    private String execute(String content, String sessionId, String cwd, boolean resume) {
+        List<String> command = buildCommand(content, sessionId, resume);
         log.info("Executing command: {}", command);
         log.info("Working directory: {}", cwd != null ? cwd : "default");
 
@@ -97,7 +98,7 @@ public class ClaudeCliService {
         }
     }
 
-    private List<String> buildCommand(String content, String sessionId) {
+    private List<String> buildCommand(String content, String sessionId, boolean resume) {
         List<String> cmd = new ArrayList<>();
         cmd.add(properties.getPath());
         cmd.add("-p");
@@ -107,7 +108,11 @@ public class ClaudeCliService {
         cmd.add("--dangerously-skip-permissions");
 
         if (sessionId != null && !sessionId.isBlank()) {
-            cmd.add("--session-id");
+            if (resume) {
+                cmd.add("--resume");
+            } else {
+                cmd.add("--session-id");
+            }
             cmd.add(sessionId);
         }
 

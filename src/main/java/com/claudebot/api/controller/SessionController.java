@@ -58,9 +58,10 @@ public class SessionController {
         }
 
         long start = System.currentTimeMillis();
-        String result = claudeCliService.runWithSession(request.getContent(), sessionId, session.getCwd());
+        String result = claudeCliService.runWithSession(request.getContent(), sessionId, session.getCwd(), session.isStarted());
         long duration = System.currentTimeMillis() - start;
 
+        session.markStarted();
         session.touch();
         log.info("Message completed: sessionId={}, durationMs={}", sessionId, duration);
 
