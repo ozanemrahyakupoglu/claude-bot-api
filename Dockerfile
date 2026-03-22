@@ -17,8 +17,8 @@ RUN ./mvnw package -q -DskipTests
 # ─── Stage 2: Runtime (Java + Node.js + Claude Code) ──────────────────────────
 FROM eclipse-temurin:21-jre-jammy
 
-# Install Node.js (LTS), git via NodeSource
-RUN apt-get update && apt-get install -y curl ca-certificates gnupg git --no-install-recommends \
+# Install Node.js (LTS), git, gettext-base (for envsubst) via NodeSource
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg git gettext-base --no-install-recommends \
     && curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y nodejs --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*

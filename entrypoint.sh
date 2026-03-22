@@ -19,10 +19,10 @@ if [ -n "$ROLE_REPO_URL" ]; then
     MCP_SOURCE="/app/${REPO_NAME}/mcp.json"
   fi
 
-  # MCP config varsa /app/.mcp.json olarak kopyala
+  # MCP config varsa /app/.mcp.json olarak kopyala ve env variable'ları resolve et
   if [ -f "$MCP_SOURCE" ]; then
-    cp "$MCP_SOURCE" /app/.mcp.json
-    echo "MCP config copied from ${MCP_SOURCE} to /app/.mcp.json"
+    envsubst < "$MCP_SOURCE" > /app/.mcp.json
+    echo "MCP config created from ${MCP_SOURCE} (env vars resolved)"
   else
     echo "No mcp.json found at ${MCP_SOURCE}, skipping MCP setup"
   fi
