@@ -12,9 +12,19 @@ if [ -n "$ROLE_REPO_URL" ]; then
 
   if [ -n "$AGENT_ROLE_PATH" ]; then
     MANIFEST_PATH="/app/${REPO_NAME}/${AGENT_ROLE_PATH}/manifest.md"
+    MCP_SOURCE="/app/${REPO_NAME}/${AGENT_ROLE_PATH}/mcp.json"
     echo "Using agent path: ${AGENT_ROLE_PATH}"
   else
     MANIFEST_PATH="/app/${REPO_NAME}/manifest.md"
+    MCP_SOURCE="/app/${REPO_NAME}/mcp.json"
+  fi
+
+  # MCP config varsa /app/.mcp.json olarak kopyala
+  if [ -f "$MCP_SOURCE" ]; then
+    cp "$MCP_SOURCE" /app/.mcp.json
+    echo "MCP config copied from ${MCP_SOURCE} to /app/.mcp.json"
+  else
+    echo "No mcp.json found at ${MCP_SOURCE}, skipping MCP setup"
   fi
 
   cat > /app/CLAUDE.md <<EOF
