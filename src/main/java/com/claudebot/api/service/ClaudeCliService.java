@@ -114,7 +114,7 @@ public class ClaudeCliService {
         cmd.add("-p");
         cmd.add(content);
         cmd.add("--output-format");
-        cmd.add("json");
+        cmd.add("stream-json");
         cmd.add("--dangerously-skip-permissions");
 
         if (sessionId != null && !sessionId.isBlank()) {
@@ -133,17 +133,16 @@ public class ClaudeCliService {
         if (raw == null || raw.isBlank()) {
             return "";
         }
-        try {
-            JsonNode root = objectMapper.readTree(raw);
-            // Claude JSON output: { "result": "...", "session_id": "...", ... }
-            if (root.has("result")) {
-                return root.get("result").asText();
-            }
-            // fallback: return raw text
-            return raw.trim();
-        } catch (Exception e) {
-            // not JSON — return as-is
-            return raw.trim();
+        // stream-json: her satır ayrı bir JSON event, "type":"result" olanı bul
+        for (String line : raw.split("\n")) {
+            if (line.isBlank()) continue;
+            try {
+                JsonNode node = objectMapper.readTree(line);
+                if ("result".equals(node.path("type").asText()) && node.has("result")) {
+                    return node.get("result").asText();
+                }
+            } catch (Exception ignored) {}
         }
+        return raw.trim();
     }
 }
