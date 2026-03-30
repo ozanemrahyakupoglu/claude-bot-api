@@ -8,8 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -66,7 +68,15 @@ public class ClaudeCliService {
         }
 
         try {
-            String output = new String(process.getInputStream().readAllBytes());
+            StringBuilder outputBuilder = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    log.info("[claude] {}", line);
+                    outputBuilder.append(line).append("\n");
+                }
+            }
+            String output = outputBuilder.toString();
 
             boolean finished = process.waitFor(properties.getTimeoutSeconds(), TimeUnit.SECONDS);
             if (!finished) {
