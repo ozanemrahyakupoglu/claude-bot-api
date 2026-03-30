@@ -115,6 +115,7 @@ public class ClaudeCliService {
         cmd.add(content);
         cmd.add("--output-format");
         cmd.add("stream-json");
+        cmd.add("--verbose");
         cmd.add("--dangerously-skip-permissions");
 
         if (sessionId != null && !sessionId.isBlank()) {
