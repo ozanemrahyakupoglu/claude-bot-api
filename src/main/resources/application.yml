@@ -4,9 +4,21 @@ server:
 claude:
   cli:
     path: claude
-    timeout-seconds: 120
+    # Agent işleri uzun sürebilir; env ile ezilebilir: CLAUDE_CLI_TIMEOUT_SECONDS
+    timeout-seconds: 3600
     default-cwd: /app
+    # Opsiyonel: CLAUDE_CLI_MODEL, CLAUDE_CLI_MAX_TURNS
+  runs:
+    # Arayüz için bellekte tutulan geçmiş
+    max-runs: 100
+    max-events-per-run: 1000
+    max-event-text-length: 2000
+  skills:
+    dirs:
+      - ${user.home}/.claude/skills
 
 spring:
   application:
     name: claude-bot-api
+
+# Opsiyonel Basic Auth: API_AUTH_USERNAME, API_AUTH_PASSWORD

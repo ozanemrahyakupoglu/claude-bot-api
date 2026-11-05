@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Bot</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #f1f3f6;
+    --border: #e1e4e8;
+    --text: #1d2125;
+    --muted: #66707a;
+    --accent: #c15f3c;
+    --accent-text: #ffffff;
+    --ok: #1f8a4c;
+    --warn: #b7791f;
+    --err: #c53030;
+    --code-bg: #f3f4f6;
+    --user-bg: #fdf1ec;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .06);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a;
+      --panel: #1c1f23;
+      --panel-2: #23272c;
+      --border: #30353b;
+      --text: #e6e8eb;
+      --muted: #949ca5;
+      --accent: #e07a55;
+      --accent-text: #15171a;
+      --ok: #48bb78;
+      --warn: #ecc94b;
+      --err: #fc8181;
+      --code-bg: #23272c;
+      --user-bg: #2b2320;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+  }
+  button {
+    font: inherit; color: inherit; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--panel-2); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.05); background: var(--accent); }
+  button.danger { color: var(--err); }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  pre, code { font-family: var(--mono); font-size: 12.5px; }
+
+  /* Header */
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  header h1 { font-size: 16px; margin: 0; }
+  .meta { color: var(--muted); font-size: 12.5px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-width: 0; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 5px; vertical-align: 1px; }
+  .dot.ok { background: var(--ok); }
+  .dot.err { background: var(--err); }
+  .dot.busy { background: var(--warn); }
+  .spacer { flex: 1; }
+  .popover-wrap { position: relative; }
+  .popover {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: min(420px, 90vw); max-height: 60vh; overflow: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  }
+  .popover .skill { padding: 6px 8px; border-radius: 6px; }
+  .popover .skill + .skill { border-top: 1px solid var(--border); }
+  .popover .skill b { font-family: var(--mono); font-size: 12.5px; }
+  .popover .skill div { color: var(--muted); font-size: 12.5px; }
+
+  /* Layout */
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 0; }
+  aside {
+    min-width: 0;
+    border-right: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; min-height: 0;
+  }
+  aside .actions { padding: 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; }
+  aside .actions button { flex: 1; }
+  .session-list { overflow: auto; padding: 6px; flex: 1; }
+  .session-list .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 10px 8px 4px; }
+  .session {
+    padding: 8px 10px; border-radius: 6px; cursor: pointer; display: block; width: 100%; text-align: left; border: 0; background: none;
+  }
+  .session:hover { background: var(--panel-2); }
+  .session.active { background: var(--user-bg); }
+  .session .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session .sub { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); padding: 12px; font-size: 13px; }
+
+  main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .conv-head {
+    padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; background: var(--panel);
+  }
+  .conv-head .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv-head .meta { font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+  .conv { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .welcome { margin: auto; text-align: center; color: var(--muted); max-width: 420px; }
+  .welcome h2 { color: var(--text); font-size: 18px; }
+
+  .run { display: flex; flex-direction: column; gap: 8px; max-width: 980px; width: 100%; margin: 0 auto; }
+  .bubble { border-radius: 10px; padding: 10px 14px; white-space: pre-wrap; word-wrap: break-word; box-shadow: var(--shadow); }
+  .bubble.user { background: var(--user-bg); align-self: flex-end; max-width: 85%; }
+  .bubble.answer { background: var(--panel); border: 1px solid var(--border); }
+  .bubble.error { background: var(--panel); border: 1px solid var(--err); color: var(--err); }
+  .run-meta { color: var(--muted); font-size: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; }
+  .badge.RUNNING { color: var(--warn); }
+  .badge.SUCCEEDED { color: var(--ok); }
+  .badge.FAILED { color: var(--err); }
+  .badge.CANCELLED { color: var(--muted); }
+  .chip { font-family: var(--mono); font-size: 11px; background: var(--panel-2); border-radius: 4px; padding: 0 6px; }
+
+  details.steps { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+  details.steps > summary { cursor: pointer; padding: 6px 12px; color: var(--muted); font-size: 12.5px; user-select: none; }
+  .step-list { border-top: 1px solid var(--border); max-height: 420px; overflow: auto; padding: 4px 0; }
+  .step { display: grid; grid-template-columns: 74px 1fr; gap: 8px; padding: 4px 12px; font-size: 12.5px; }
+  .step .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .03em; padding-top: 2px; }
+  .step .v { min-width: 0; }
+  .step .v pre { margin: 2px 0 0; background: var(--code-bg); padding: 6px 8px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow: auto; }
+  .step.tool .k { color: var(--accent); }
+  .step.err .k, .step.err .v { color: var(--err); }
+  .step .name { font-family: var(--mono); font-weight: 600; }
+
+  .spinner { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--warn); border-radius: 50%; display: inline-block; animation: spin .8s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .composer { border-top: 1px solid var(--border); background: var(--panel); padding: 12px 16px; }
+  .composer-inner { max-width: 980px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: vertical; min-height: 64px; max-height: 40vh; font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .hint { color: var(--muted); font-size: 11.5px; max-width: 980px; margin: 6px auto 0; }
+
+  /* Live log */
+  .log-panel { border-top: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
+  .log-head { display: flex; gap: 8px; align-items: center; padding: 6px 16px; font-size: 12.5px; }
+  .log-head b { font-weight: 600; }
+  .log-body {
+    height: 210px; overflow: auto; font-family: var(--mono); font-size: 11.5px; padding: 4px 16px 8px;
+    border-top: 1px solid var(--border); background: var(--code-bg);
+  }
+  .log-panel.collapsed .log-body { display: none; }
+  .log-empty { color: var(--muted); padding-top: 6px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 12.5px; }
+  .log-line { white-space: pre-wrap; word-break: break-word; }
+  .log-line .t { color: var(--muted); }
+  .log-line .r { color: var(--accent); }
+  .log-line.err { color: var(--err); }
+  .log-line.life { font-weight: 600; }
+
+  .toast {
+    position: fixed; right: 16px; bottom: 16px; z-index: 50; max-width: min(460px, calc(100vw - 32px));
+    background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--ok); border-radius: 8px;
+    padding: 10px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.18); white-space: pre-wrap;
+  }
+  .toast.err { border-left-color: var(--err); }
+
+  @media (max-width: 820px) {
+    body { overflow-x: hidden; overflow-y: auto; height: auto; min-height: 100%; display: block; }
+    header { padding: 10px 16px; }
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    aside { border-right: 0; border-bottom: 1px solid var(--border); max-height: 32vh; }
+    main { min-height: 70vh; }
+    .conv { padding: 12px 16px; }
+    .conv-head .meta { display: none; }
+    .bubble.user { max-width: 100%; }
+    .step { grid-template-columns: 58px minmax(0, 1fr); }
+    .composer { padding: 10px 16px; }
+    .log-body { height: 160px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="agent-name">Claude Bot</h1>
+  <div class="meta">
+    <span id="agent-commit" title="Çalışan agent commit'i">commit —</span>
+    <span id="agent-runs"><span class="dot"></span>0 çalışan</span>
+    <span id="conn"><span class="dot err"></span>Bağlantı yok</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="popover-wrap">
+    <button id="skills-btn">Skill'ler (0)</button>
+    <div class="popover" id="skills-pop" hidden></div>
+  </div>
+  <button id="reload-btn" title="Agent dosyalarını git'ten yeniden çek">Reload</button>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="actions">
+      <button class="primary" id="new-session">+ Yeni oturum</button>
+    </div>
+    <div class="session-list" id="session-list"></div>
+  </aside>
+
+  <main>
+    <div class="conv-head" id="conv-head" hidden>
+      <div style="min-width:0;flex:1">
+        <div class="t" id="conv-title"></div>
+        <div class="meta" id="conv-sub"></div>
+      </div>
+      <button class="small danger" id="delete-session">Oturumu sil</button>
+    </div>
+    <div class="conv" id="conv"></div>
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="prompt" placeholder="Agent'a ne yapmasını istiyorsun?"></textarea>
+        <button class="primary" id="send">Gönder</button>
+      </div>
+      <div class="hint" id="hint">Ctrl/⌘ + Enter ile gönder.</div>
+    </div>
+  </main>
+</div>
+
+<section class="log-panel" id="log-panel">
+  <div class="log-head">
+    <b>Canlı log</b>
+    <span class="meta" id="log-count">0 satır</span>
+    <div class="spacer"></div>
+    <button class="small" id="log-pause">Duraklat</button>
+    <button class="small" id="log-clear">Temizle</button>
+    <button class="small" id="log-toggle">Gizle</button>
+  </div>
+  <div class="log-body" id="log-body"><div class="log-empty">Agent çalıştıkça tüm isteklerin adımları burada akar (n8n'den gelenler dahil).</div></div>
+</section>
+
+<script>
+(() => {
+  const MAX_LOG_LINES = 2000;
+  const ONE_SHOT = "none";
+
+  const state = {
+    agent: null,
+    sessions: [],
+    selected: null,          // sessionId, ONE_SHOT, or null
+    runs: new Map(),         // runId -> { summary, events: [], lastSeq, loaded, el }
+    logPaused: false,
+    logLines: 0,
+  };
+
+  // ---------- helpers ----------
+  const $ = (id) => document.getElementById(id);
+
+  function h(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of children.flat()) {
+      if (c == null || c === false) continue;
+      el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+    }
+    return el;
+  }
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, {
+      ...opts,
+      headers: opts.body ? { "content-type": "application/json", ...(opts.headers || {}) } : opts.headers,
+    });
+    if (res.status === 204) return null;
+    const text = await res.text();
+    let body = null;
+    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+    if (!res.ok) throw new Error((body && body.error) || `${res.status} ${res.statusText}`);
+    return body;
+  }
+
+  let toastTimer;
+  function toast(msg, isErr = false) {
+    document.querySelectorAll(".toast").forEach((t) => t.remove());
+    const el = h("div", { class: "toast" + (isErr ? " err" : "") }, msg);
+    document.body.append(el);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.remove(), isErr ? 8000 : 4500);
+  }
+
+  const time = (iso) => iso ? new Date(iso).toLocaleTimeString("tr-TR") : "";
+  const dateTime = (iso) => iso ? new Date(iso).toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" }) : "";
+  const short = (id) => id ? id.slice(0, 8) : "";
+  const clip = (s, n) => (s && s.length > n ? s.slice(0, n) + "…" : s || "");
+
+  function duration(ms) {
+    if (ms == null) return "";
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s} sn`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} dk ${s % 60} sn`;
+    return `${Math.floor(m / 60)} sa ${m % 60} dk`;
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  }
+
+  // ---------- stream-json -> readable steps ----------
+  function toolName(name) {
+    const m = /^mcp__(.+?)__(.+)$/.exec(name || "");
+    return m ? `${m[1]} · ${m[2]}` : name;
+  }
+
+  function summarizeInput(name, input) {
+    if (!input || typeof input !== "object") return "";
+    if (name === "Skill") return input.skill || input.command || "";
+    for (const key of ["command", "file_path", "path", "url", "pattern", "query", "description", "prompt"]) {
+      if (typeof input[key] === "string") return input[key];
+    }
+    return JSON.stringify(input);
+  }
+
+  function resultText(content) {
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content.map((c) => c.type === "text" ? c.text : `[${c.type}]`).join("\n");
+    }
+    return content == null ? "" : JSON.stringify(content);
+  }
+
+  /** Returns [{kind, label, title?, text?, error?}] for one run event. */
+  function describe(ev) {
+    if (ev.kind === "log") return [{ kind: "log", label: "çıktı", text: String(ev.data) }];
+    if (ev.kind !== "cli") return [];
+    const d = ev.data || {};
+    switch (d.type) {
+      case "system":
+        if (d.subtype === "init") {
+          const mcp = (d.mcp_servers || []).map((s) => `${s.name} (${s.status})`).join(", ");
+          return [{ kind: "sys", label: "başladı", text: [d.model && `model: ${d.model}`, mcp && `MCP: ${mcp}`].filter(Boolean).join(" · ") || "oturum hazır" }];
+        }
+        return [{ kind: "sys", label: "sistem", text: d.subtype || "" }];
+      case "assistant":
+        return ((d.message && d.message.content) || []).map((b) => {
+          if (b.type === "text") return { kind: "text", label: "claude", text: b.text };
+          if (b.type === "thinking") return { kind: "think", label: "düşünce", text: b.thinking };
+          if (b.type === "tool_use") {
+            const isSkill = b.name === "Skill";
+            return { kind: "tool", label: isSkill ? "skill" : "araç", title: isSkill ? summarizeInput(b.name, b.input) : toolName(b.name), text: isSkill ? "" : summarizeInput(b.name, b.input) };
+          }
+          return { kind: "other", label: b.type, text: "" };
+        });
+      case "user":
+        return ((d.message && d.message.content) || [])
+          .filter((b) => b.type === "tool_result")
+          .map((b) => ({ kind: "result", label: "sonuç", text: resultText(b.content), error: !!b.is_error }));
+      case "result":
+        return [{ kind: d.is_error ? "result" : "sys", label: "bitti", text: `${d.subtype || ""}${d.num_turns ? ` · ${d.num_turns} tur` : ""}`, error: !!d.is_error }];
+      default:
+        return [{ kind: "other", label: d.type || "event", text: d.subtype || "" }];
+    }
+  }
+
+  function stepEl(step) {
+    return h("div", { class: `step ${step.kind}${step.error ? " err" : ""}` },
+      h("div", { class: "k" }, step.label),
+      h("div", { class: "v" },
+        step.title ? h("span", { class: "name" }, step.title) : null,
+        step.text ? (step.kind === "text" || step.kind === "sys" ? h("div", { style: "white-space:pre-wrap" }, step.text) : h("pre", {}, step.text)) : null));
+  }
+
+  // ---------- agent / skills ----------
+  async function loadAgent() {
+    try {
+      const a = await api("/api/agent");
+      state.agent = a;
+      $("agent-name").textContent = a.name;
+      document.title = `${a.name} · Claude Bot`;
+      $("agent-commit").textContent = `commit ${a.commit ? a.commit.slice(0, 7) : "—"}`;
+      $("agent-commit").title = a.commit || "";
+      $("agent-runs").replaceChildren(h("span", { class: "dot" + (a.activeRuns ? " busy" : " ok") }), `${a.activeRuns} çalışan`);
+    } catch (e) {
+      toast("Agent bilgisi alınamadı: " + e.message, true);
+    }
+  }
+
+  async function loadSkills() {
+    try {
+      const skills = await api("/api/skills");
+      $("skills-btn").textContent = `Skill'ler (${skills.length})`;
+      $("skills-pop").replaceChildren(...(skills.length
+        ? skills.map((s) => h("div", { class: "skill" }, h("b", {}, s.name), h("div", {}, s.description || "açıklama yok")))
+        : [h("div", { class: "empty" }, "Yüklü skill yok.")]));
+    } catch (e) { /* header'da kalsın */ }
+  }
+
+  $("skills-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    $("skills-pop").hidden = !$("skills-pop").hidden;
+  });
+  document.addEventListener("click", (e) => {
+    if (!$("skills-pop").contains(e.target)) $("skills-pop").hidden = true;
+  });
+
+  $("reload-btn").addEventListener("click", async () => {
+    if (!confirm("Agent dosyaları git'ten yeniden çekilecek ve açık oturumlar kapatılacak. Devam edilsin mi?")) return;
+    const btn = $("reload-btn");
+    btn.disabled = true;
+    btn.textContent = "Reload…";
+    try {
+      const r = await api("/api/agent/reload", { method: "POST" });
+      toast(r.changed
+        ? `Güncellendi: ${short(r.previousCommit)} → ${short(r.commit)}\n${r.closedSessions} oturum kapatıldı · ${r.skills.length} skill`
+        : `Değişiklik yok (${short(r.commit)}). ${r.closedSessions} oturum kapatıldı.`);
+      state.selected = null;
+      history.replaceState(null, "", location.pathname);
+      await Promise.all([loadAgent(), loadSkills(), loadSessions()]);
+      renderConversation();
+    } catch (e) {
+      toast("Reload başarısız: " + e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Reload";
+    }
+  });
+
+  // ---------- sessions ----------
+  async function loadSessions() {
+    try {
+      state.sessions = await api("/api/sessions");
+    } catch (e) {
+      toast("Oturumlar alınamadı: " + e.message, true);
+      return;
+    }
+    if (state.selected && state.selected !== ONE_SHOT && !state.sessions.some((s) => s.sessionId === state.selected)) {
+      state.selected = null;
+      history.replaceState(null, "", location.pathname);
+      renderConversation();
+    }
+    renderSessions();
+    renderHead();
+  }
+
+  function renderSessions() {
+    const list = $("session-list");
+    const items = [
+      h("div", { class: "label" }, "Tek seferlik"),
+      h("button", { class: "session" + (state.selected === ONE_SHOT ? " active" : ""), onclick: () => select(ONE_SHOT) },
+        h("div", { class: "title" }, "Tek seferlik promptlar"),
+        h("div", { class: "sub" }, "Oturumsuz, geçmiş tutulmaz")),
+      h("div", { class: "label" }, `Oturumlar (${state.sessions.length})`),
+    ];
+    if (!state.sessions.length) items.push(h("div", { class: "empty" }, "Henüz oturum yok."));
+    for (const s of state.sessions) {
+      items.push(h("button", { class: "session" + (state.selected === s.sessionId ? " active" : ""), onclick: () => select(s.sessionId), title: s.sessionId },
+        h("div", { class: "title" }, s.busy ? h("span", { class: "spinner" }) : null, s.busy ? " " : null, s.title || "Yeni oturum"),
+        h("div", { class: "sub" }, `${s.messageCount} mesaj · ${dateTime(s.lastUsedAt)}`)));
+    }
+    list.replaceChildren(...items);
+  }
+
+  function currentSession() {
+    return state.sessions.find((s) => s.sessionId === state.selected) || null;
+  }
+
+  function renderHead() {
+    const head = $("conv-head");
+    if (!state.selected) { head.hidden = true; return; }
+    head.hidden = false;
+    const s = currentSession();
+    if (state.selected === ONE_SHOT) {
+      $("conv-title").textContent = "Tek seferlik promptlar";
+      $("conv-sub").textContent = "Her prompt ayrı çalışır; önceki mesajları hatırlamaz.";
+      $("delete-session").hidden = true;
+    } else if (s) {
+      $("conv-title").textContent = s.title || "Yeni oturum";
+      $("conv-sub").textContent = `${s.sessionId} · cwd ${s.cwd}`;
+      $("delete-session").hidden = false;
+      $("delete-session").disabled = s.busy;
+    }
+  }
+
+  $("new-session").addEventListener("click", async () => {
+    try {
+      const s = await api("/api/sessions", { method: "POST" });
+      await loadSessions();
+      select(s.sessionId);
+      $("prompt").focus();
+    } catch (e) {
+      toast("Oturum açılamadı: " + e.message, true);
+    }
+  });
+
+  $("delete-session").addEventListener("click", async () => {
+    const s = currentSession();
+    if (!s || !confirm("Bu oturum silinsin mi?")) return;
+    try {
+      await api(`/api/sessions/${s.sessionId}`, { method: "DELETE" });
+      state.selected = null;
+      history.replaceState(null, "", location.pathname);
+      await loadSessions();
+      renderConversation();
+    } catch (e) {
+      toast("Silinemedi: " + e.message, true);
+    }
+  });
+
+  async function select(id) {
+    state.selected = id;
+    // Sayfa yenilenince aynı oturum açık kalsın
+    history.replaceState(null, "", id ? `#s=${encodeURIComponent(id)}` : location.pathname);
+    state.runs.clear();
+    renderSessions();
+    renderHead();
+    renderConversation();
+    try {
+      const runs = await api(`/api/runs?sessionId=${encodeURIComponent(id)}&limit=100`);
+      if (state.selected !== id) return;
+      for (const summary of runs.reverse()) addRun(summary);
+      renderConversation();
+    } catch (e) {
+      toast("Geçmiş alınamadı: " + e.message, true);
+    }
+  }
+
+  // ---------- runs ----------
+  function addRun(summary) {
+    let r = state.runs.get(summary.runId);
+    if (!r) {
+      r = { summary, events: [], lastSeq: 0, loaded: false, loading: null, el: null, open: summary.status === "RUNNING" };
+      state.runs.set(summary.runId, r);
+    } else {
+      r.summary = summary;
+    }
+    if (summary.status === "RUNNING") ensureEvents(r);
+    return r;
+  }
+
+  function belongsToView(runSessionId) {
+    return state.selected && (state.selected === ONE_SHOT ? runSessionId == null : runSessionId === state.selected);
+  }
+
+  async function ensureEvents(r) {
+    if (r.loaded || r.loading) return r.loading;
+    r.loading = api(`/api/runs/${r.summary.runId}`).then((d) => {
+      // SSE ile önceden gelenlerle birleştir
+      const known = new Set(r.events.map((e) => e.seq));
+      r.events = [...d.events.filter((e) => !known.has(e.seq)), ...r.events].sort((a, b) => a.seq - b.seq);
+      r.lastSeq = r.events.length ? r.events[r.events.length - 1].seq : 0;
+      r.dropped = d.droppedEvents;
+      r.summary = d.run;
+      r.loaded = true;
+      renderRun(r);
+    }).catch((e) => toast("Adımlar alınamadı: " + e.message, true)).finally(() => { r.loading = null; });
+    return r.loading;
+  }
+
+  function renderConversation() {
+    const conv = $("conv");
+    if (!state.selected) {
+      conv.replaceChildren(h("div", { class: "welcome" },
+        h("h2", {}, state.agent ? state.agent.name : "Claude Bot"),
+        h("p", {}, "Soldan bir oturum seç ya da yeni oturum aç. Oturum içindeki mesajlar birbirini hatırlar."),
+        h("p", {}, "Doğrudan yazıp gönderirsen yeni bir oturum açılır.")));
+      return;
+    }
+    const runs = [...state.runs.values()];
+    if (!runs.length) {
+      conv.replaceChildren(h("div", { class: "welcome" }, h("p", {}, "Henüz mesaj yok. Aşağıdan bir prompt gönder.")));
+      return;
+    }
+    conv.replaceChildren(...runs.map((r) => { r.el = null; return renderRun(r); }));
+    scrollToBottom(true);
+  }
+
+  function renderRun(r) {
+    const s = r.summary;
+    const running = s.status === "RUNNING";
+    const steps = r.events.flatMap(describe);
+
+    const stepsBox = h("details", {
+      class: "steps",
+      open: r.open || null,
+      ontoggle: (e) => { r.open = e.target.open; if (r.open) ensureEvents(r); },
+    },
+      h("summary", {}, running ? h("span", { class: "spinner" }) : null, running ? " " : null,
+        h("span", { class: "count" }, r.loaded || r.events.length ? `Adımlar (${steps.length})` : "Adımlar"),
+        r.dropped ? ` · ilk ${r.dropped} olay gösterilmiyor` : ""),
+      h("div", { class: "step-list" },
+        r.loaded || r.events.length
+          ? (steps.length ? steps.map(stepEl) : h("div", { class: "empty" }, "Henüz adım yok."))
+          : h("div", { class: "empty" }, "Yükleniyor…")));
+
+    const meta = h("div", { class: "run-meta" },
+      h("span", { class: `badge ${s.status}` }, { RUNNING: "çalışıyor", SUCCEEDED: "tamamlandı", FAILED: "hata", CANCELLED: "iptal" }[s.status]),
+      h("span", {}, time(s.startedAt)),
+      s.durationMs != null && !running ? h("span", {}, duration(s.durationMs)) : null,
+      running ? h("span", { "data-elapsed": s.startedAt }, duration(Date.now() - new Date(s.startedAt))) : null,
+      s.numTurns ? h("span", {}, `${s.numTurns} tur`) : null,
+      s.costUsd != null ? h("span", {}, `$${s.costUsd.toFixed(4)}`) : null,
+      ...(s.skillsUsed || []).map((k) => h("span", { class: "chip", title: "Kullanılan skill" }, k)),
+      running ? h("button", { class: "small danger", onclick: () => cancelRun(s.runId) }, "İptal et") : null);
+
+    const el = h("div", { class: "run", "data-run": s.runId },
+      h("div", { class: "bubble user" }, s.prompt),
+      stepsBox,
+      s.status === "SUCCEEDED" ? h("div", { class: "bubble answer" }, s.result || "(boş yanıt)") : null,
+      s.status === "FAILED" || s.status === "CANCELLED" ? h("div", { class: "bubble error" }, s.error || "Hata") : null,
+      meta);
+
+    if (r.el && r.el.isConnected) {
+      const list = r.el.querySelector(".step-list");
+      const keep = list ? list.scrollTop : 0;
+      const stick = list ? list.scrollHeight - list.scrollTop - list.clientHeight < 30 : true;
+      r.el.replaceWith(el);
+      const nl = el.querySelector(".step-list");
+      if (nl) nl.scrollTop = stick ? nl.scrollHeight : keep;
+    }
+    r.el = el;
+    return el;
+  }
+
+  function scrollToBottom(force) {
+    const conv = $("conv");
+    if (force || conv.scrollHeight - conv.scrollTop - conv.clientHeight < 120) conv.scrollTop = conv.scrollHeight;
+  }
+
+  async function cancelRun(runId) {
+    if (!confirm("Çalışan istek iptal edilsin mi?")) return;
+    try {
+      await api(`/api/runs/${runId}/cancel`, { method: "POST" });
+    } catch (e) {
+      toast("İptal edilemedi: " + e.message, true);
+    }
+  }
+
+  setInterval(() => {
+    document.querySelectorAll("[data-elapsed]").forEach((el) => {
+      el.textContent = duration(Date.now() - new Date(el.dataset.elapsed));
+    });
+  }, 1000);
+
+  // ---------- send ----------
+  async function send() {
+    const content = $("prompt").value.trim();
+    if (!content) return;
+    const btn = $("send");
+    btn.disabled = true;
+    try {
+      if (!state.selected) {
+        const s = await api("/api/sessions", { method: "POST" });
+        await loadSessions();
+        await select(s.sessionId);
+      }
+      const body = { content };
+      if (state.selected !== ONE_SHOT) body.sessionId = state.selected;
+      const summary = await api("/api/runs", { method: "POST", body: JSON.stringify(body) });
+      $("prompt").value = "";
+      if (belongsToView(summary.sessionId)) {
+        const isNew = !state.runs.has(summary.runId);
+        const r = addRun(summary);
+        r.open = true;
+        if (isNew || !r.el) {
+          if (state.runs.size === 1) renderConversation();
+          else $("conv").append(renderRun(r));
+        }
+        scrollToBottom(true);
+      }
+    } catch (e) {
+      toast("Gönderilemedi: " + e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  $("send").addEventListener("click", send);
+  $("prompt").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+  });
+
+  // ---------- live events ----------
+  const refreshLists = debounce(() => { loadSessions(); loadAgent(); }, 300);
+
+  function onRunEvent(ev) {
+    appendLog(ev);
+
+    if (ev.kind === "run_started" || ev.kind === "run_finished") {
+      refreshLists();
+      if (!belongsToView(ev.sessionId)) return;
+      const isNew = !state.runs.has(ev.runId);
+      const r = addRun(ev.data);
+      if (ev.kind === "run_finished") ensureEvents(r);
+      if (isNew) {
+        if (state.runs.size === 1) renderConversation();
+        else { $("conv").append(renderRun(r)); scrollToBottom(false); }
+      } else {
+        renderRun(r);
+        scrollToBottom(false);
+      }
+      return;
+    }
+
+    const r = state.runs.get(ev.runId);
+    if (!r || ev.seq <= r.lastSeq) return;
+    r.events.push(ev);
+    r.lastSeq = ev.seq;
+    if (r.el) {
+      const list = r.el.querySelector(".step-list");
+      const count = r.el.querySelector("details.steps > summary .count");
+      if (list && r.loaded) {
+        const stick = list.scrollHeight - list.scrollTop - list.clientHeight < 30;
+        if (list.firstChild && list.firstChild.classList && list.firstChild.classList.contains("empty")) list.replaceChildren();
+        for (const st of describe(ev)) list.append(stepEl(st));
+        if (stick) list.scrollTop = list.scrollHeight;
+        if (count) count.textContent = `Adımlar (${r.events.flatMap(describe).length})`;
+      }
+    }
+  }
+
+  function logText(ev) {
+    if (ev.kind === "run_started") return `▶ başladı: ${clip(ev.data.prompt, 160)}`;
+    if (ev.kind === "run_finished") return `■ ${ev.data.status}${ev.data.error ? ": " + clip(ev.data.error, 200) : ""} (${duration(ev.data.durationMs)})`;
+    return describe(ev).map((st) => `[${st.label}] ${st.title ? st.title + " " : ""}${clip((st.text || "").replace(/\s+/g, " "), 300)}`).join("\n");
+  }
+
+  function appendLog(ev) {
+    if (state.logPaused) return;
+    const text = logText(ev);
+    if (!text) return;
+    const body = $("log-body");
+    body.querySelector(".log-empty")?.remove();
+    const stick = body.scrollHeight - body.scrollTop - body.clientHeight < 30;
+    const life = ev.kind === "run_started" || ev.kind === "run_finished";
+    const err = (ev.kind === "run_finished" && ev.data.status === "FAILED") || describe(ev).some((s) => s.error);
+    body.append(h("div", { class: "log-line" + (life ? " life" : "") + (err ? " err" : "") },
+      h("span", { class: "t" }, time(ev.time) + " "),
+      h("span", { class: "r", title: ev.runId }, `${ev.sessionId ? "s:" + short(ev.sessionId) : "tek"}/${short(ev.runId)} `),
+      text));
+    state.logLines++;
+    while (body.childElementCount > MAX_LOG_LINES) body.firstChild.remove();
+    $("log-count").textContent = `${Math.min(state.logLines, MAX_LOG_LINES)} satır`;
+    if (stick) body.scrollTop = body.scrollHeight;
+  }
+
+  $("log-pause").addEventListener("click", () => {
+    state.logPaused = !state.logPaused;
+    $("log-pause").textContent = state.logPaused ? "Devam et" : "Duraklat";
+  });
+  $("log-clear").addEventListener("click", () => {
+    $("log-body").replaceChildren();
+    state.logLines = 0;
+    $("log-count").textContent = "0 satır";
+  });
+  $("log-toggle").addEventListener("click", () => {
+    const p = $("log-panel");
+    p.classList.toggle("collapsed");
+    $("log-toggle").textContent = p.classList.contains("collapsed") ? "Göster" : "Gizle";
+  });
+
+  function connect() {
+    const es = new EventSource("/api/events");
+    es.onopen = () => {
+      $("conn").replaceChildren(h("span", { class: "dot ok" }), "Canlı");
+      // Bağlantı koptuysa arada kaçanları tamamla
+      loadSessions(); loadAgent();
+      for (const r of state.runs.values()) if (r.summary.status === "RUNNING") { r.loaded = false; ensureEvents(r); }
+    };
+    es.onerror = () => $("conn").replaceChildren(h("span", { class: "dot err" }), "Bağlantı yok, yeniden deneniyor…");
+    es.addEventListener("run", (e) => {
+      try { onRunEvent(JSON.parse(e.data)); } catch (err) { console.error(err); }
+    });
+  }
+
+  // ---------- start ----------
+  loadAgent();
+  loadSkills();
+  loadSessions().then(() => {
+    const fromHash = new URLSearchParams(location.hash.slice(1)).get("s");
+    if (fromHash && (fromHash === ONE_SHOT || state.sessions.some((s) => s.sessionId === fromHash))) select(fromHash);
+    else renderConversation();
+  });
+  connect();
+})();
+</script>
+</body>
+</html>

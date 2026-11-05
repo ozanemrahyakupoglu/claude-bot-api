@@ -8,8 +8,10 @@ import org.springframework.stereotype.Component;
 public class ClaudeProperties {
 
     private String path = "claude";
-    private int timeoutSeconds = 120;
+    private int timeoutSeconds = 3600;
     private String defaultCwd = "/app";
+    private String model;
+    private Integer maxTurns;
 
     public String getPath() {
         return path;
@@ -33,5 +35,21 @@ public class ClaudeProperties {
 
     public void setDefaultCwd(String defaultCwd) {
         this.defaultCwd = defaultCwd;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
+    }
+
+    public Integer getMaxTurns() {
+        return maxTurns;
+    }
+
+    public void setMaxTurns(Integer maxTurns) {
+        this.maxTurns = maxTurns;
     }
 }

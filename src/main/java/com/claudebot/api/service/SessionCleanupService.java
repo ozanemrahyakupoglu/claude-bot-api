@@ -15,9 +15,11 @@ public class SessionCleanupService {
     private static final Logger log = LoggerFactory.getLogger(SessionCleanupService.class);
 
     private final SessionStore sessionStore;
+    private final RunStore runStore;
 
-    public SessionCleanupService(SessionStore sessionStore) {
+    public SessionCleanupService(SessionStore sessionStore, RunStore runStore) {
         this.sessionStore = sessionStore;
+        this.runStore = runStore;
     }
 
     @Scheduled(fixedRate = 3_600_000) // her saat çalışır
@@ -25,7 +27,7 @@ public class SessionCleanupService {
         Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
 
         List<String> expired = sessionStore.getAll().stream()
-                .filter(s -> s.getLastUsedAt().isBefore(cutoff))
+                .filter(s -> !s.isBusy() && s.getLastUsedAt().isBefore(cutoff))
                 .map(s -> s.getSessionId())
                 .toList();
 
@@ -33,7 +35,10 @@ public class SessionCleanupService {
             return;
         }
 
-        expired.forEach(sessionStore::remove);
+        expired.forEach(id -> {
+            sessionStore.remove(id);
+            runStore.removeBySession(id);
+        });
         log.info("Cleaned up {} expired session(s) (idle > 24h)", expired.size());
     }
 }

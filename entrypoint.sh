@@ -1,50 +1,39 @@
 #!/bin/sh
 set -e
 
-mkdir -p /app/workspace
+# Agent adı: AI_AGENT_NAME, yoksa eski yapıdaki rol klasörü, yoksa repo adı
+if [ -z "$AI_AGENT_NAME" ]; then
+  if [ -n "$AI_AGENT_ROLE" ]; then
+    AI_AGENT_NAME="$AI_AGENT_ROLE"
+  else
+    AI_AGENT_NAME=$(basename "${AI_AGENT_GIT_URL:-$AI_AGENT_CONFIGS_GIT_URL}" .git)
+  fi
+fi
+export AI_AGENT_NAME
 
-if [ -z "$AI_AGENT_CONFIGS_GIT_URL" ]; then
-  echo "ERROR: Required environment variable AI_AGENT_CONFIGS_GIT_URL is not set"
-  exit 1
+# Claude girişi ve ayarları container yeniden oluşturulsa da kalsın: <AI_AGENT_PRIVATE_DIR>/claude
+# AI_AGENT_PRIVATE_DIR, host'ta bu agent'a ayrılmış klasörün mount edildiği yerdir (ör. /app/workspace/private)
+if [ -n "$AI_AGENT_PRIVATE_DIR" ]; then
+  CLAUDE_DATA_DIR="${AI_AGENT_PRIVATE_DIR%/}/claude"
+  if mkdir -p "$CLAUDE_DATA_DIR" 2>/dev/null && [ -w "$CLAUDE_DATA_DIR" ]; then
+    if [ ! -L "$CLAUDE_CONFIG_DIR" ]; then
+      rm -rf "$CLAUDE_CONFIG_DIR"
+    fi
+    ln -sfn "$CLAUDE_DATA_DIR" "$CLAUDE_CONFIG_DIR"
+    echo "Claude config persisted in ${CLAUDE_DATA_DIR}"
+  else
+    echo "WARNING: ${CLAUDE_DATA_DIR} is not writable by uid $(id -u); Claude login will not survive container recreation"
+  fi
 fi
 
-if [ -z "$AI_AGENT_ROLE" ]; then
-  echo "ERROR: Required environment variable AI_AGENT_ROLE is not set"
-  exit 1
+# Restart'ta güncelleme başarısız olursa (GitHub erişilemiyor, bozuk commit) diskteki son çalışan kopyayla aç
+if ! /app/setup-agent.sh; then
+  if [ -f /app/.agent-commit ]; then
+    echo "WARNING: Agent update failed, starting with previous commit $(cat /app/.agent-commit)"
+  else
+    echo "ERROR: Agent setup failed"
+    exit 1
+  fi
 fi
-
-echo "Cloning role repository: $AI_AGENT_CONFIGS_GIT_URL"
-cd /app && git clone "$AI_AGENT_CONFIGS_GIT_URL"
-
-AI_AGENT_CONFIGS_PATH="/app/$(basename "$AI_AGENT_CONFIGS_GIT_URL" .git)"
-echo "Role repository cloned to ${AI_AGENT_CONFIGS_PATH}"
-
-AI_AGENT_ROLE_PATH="${AI_AGENT_CONFIGS_PATH}/${AI_AGENT_ROLE}"
-MANIFEST_PATH="${AI_AGENT_ROLE_PATH}/manifest.md"
-MCP_PATH="${AI_AGENT_ROLE_PATH}/mcp.json"
-echo "Using agent role: ${AI_AGENT_ROLE}"
-
-# Tüm dosyalardaki env variable'ları resolve et
-echo "Resolving env variables in all files under ${AI_AGENT_ROLE_PATH}"
-find "${AI_AGENT_ROLE_PATH}" -type f | while read -r file; do
-  envsubst < "$file" > "$file.tmp" && mv "$file.tmp" "$file"
-done
-
-# MCP config varsa /app/.mcp.json olarak kopyala
-if [ -f "$MCP_PATH" ]; then
-  cp "$MCP_PATH" /app/.mcp.json
-  echo "MCP config copied from ${MCP_PATH}"
-else
-  echo "No mcp.json found at ${MCP_PATH}, skipping MCP setup"
-fi
-
-cat > /app/CLAUDE.md <<EOF
-${MANIFEST_PATH} dosyasını oku ve orada tanımlanan tüm talimatlara uy.
-
-Sistem genelindeki tüm dosyaları okuyabilirsin. Ancak yalnızca /app/workspace/ dizini altındaki dosyaları oluşturabilir, düzenleyebilir veya silebilirsin. Bu dizin dışındaki hiçbir dosyayı değiştirme.
-
-Eğer /app/workspace/ dışında bir dosyayı değiştirmen gerekirse; işlemi gerçekleştirme. Bunun yerine şu formatta hata döndür: "YETKİ HATASI: '<dosya_yolu>' dosyası üzerinde değişiklik yapma yetkiniz bulunmamaktadır. Yalnızca /app/workspace/ dizini altındaki dosyalar düzenlenebilir."
-EOF
-echo "CLAUDE.md created pointing to ${MANIFEST_PATH}"
 
 exec java -jar /app/app.jar

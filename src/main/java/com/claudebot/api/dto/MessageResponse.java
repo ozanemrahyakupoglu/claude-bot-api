@@ -1,15 +1,23 @@
 package com.claudebot.api.dto;
 
+import java.util.List;
+
 public class MessageResponse {
 
     private String sessionId;
     private String content;
     private String duration;
+    private int numTurns;
+    private Double costUsd;
+    private List<String> skillsUsed;
 
-    public MessageResponse(String sessionId, String content, long durationMs) {
+    public MessageResponse(String sessionId, ClaudeResult result, long durationMs) {
         this.sessionId = sessionId;
-        this.content = content;
+        this.content = result.content();
         this.duration = formatDuration(durationMs);
+        this.numTurns = result.numTurns();
+        this.costUsd = result.costUsd();
+        this.skillsUsed = result.skillsUsed();
     }
 
     private String formatDuration(long ms) {
@@ -23,4 +31,7 @@ public class MessageResponse {
     public String getSessionId() { return sessionId; }
     public String getContent() { return content; }
     public String getDuration() { return duration; }
+    public int getNumTurns() { return numTurns; }
+    public Double getCostUsd() { return costUsd; }
+    public List<String> getSkillsUsed() { return skillsUsed; }
 }
