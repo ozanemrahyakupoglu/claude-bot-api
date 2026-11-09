@@ -222,19 +222,19 @@
         <textarea id="prompt" placeholder="Agent'a ne yapmasını istiyorsun?"></textarea>
         <button class="primary" id="send">Gönder</button>
       </div>
-      <div class="hint" id="hint">Ctrl/⌘ + Enter ile gönder.</div>
+      <div class="hint" id="hint">Enter ile gönder, Shift + Enter ile yeni satır.</div>
     </div>
   </main>
 </div>
 
-<section class="log-panel" id="log-panel">
+<section class="log-panel collapsed" id="log-panel">
   <div class="log-head">
     <b>Canlı log</b>
     <span class="meta" id="log-count">0 satır</span>
     <div class="spacer"></div>
     <button class="small" id="log-pause">Duraklat</button>
     <button class="small" id="log-clear">Temizle</button>
-    <button class="small" id="log-toggle">Gizle</button>
+    <button class="small" id="log-toggle">Göster</button>
   </div>
   <div class="log-body" id="log-body"><div class="log-empty">Agent çalıştıkça tüm isteklerin adımları burada akar (n8n'den gelenler dahil).</div></div>
 </section>
@@ -627,9 +627,18 @@
     return el;
   }
 
+  // Kullanıcı en alttayken yeni içerik gelince otomatik aşağı kay; yukarı kaydırdıysa rahatsız etme
+  let convStick = true;
+  $("conv").addEventListener("scroll", () => {
+    const conv = $("conv");
+    convStick = conv.scrollHeight - conv.scrollTop - conv.clientHeight < 60;
+  });
+  new MutationObserver(() => scrollToBottom(false)).observe($("conv"), { childList: true, subtree: true, characterData: true });
+
   function scrollToBottom(force) {
     const conv = $("conv");
-    if (force || conv.scrollHeight - conv.scrollTop - conv.clientHeight < 120) conv.scrollTop = conv.scrollHeight;
+    if (force) convStick = true;
+    if (convStick) conv.scrollTop = conv.scrollHeight;
   }
 
   async function cancelRun(runId) {
@@ -652,6 +661,7 @@
     const content = $("prompt").value.trim();
     if (!content) return;
     const btn = $("send");
+    if (btn.disabled) return;
     btn.disabled = true;
     try {
       if (!state.selected) {
@@ -682,7 +692,7 @@
 
   $("send").addEventListener("click", send);
   $("prompt").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); }
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
   });
 
   // ---------- live events ----------
